@@ -5,7 +5,7 @@
 // @description  Sniff out hidden content on steamgifts.com posts
 // @icon         https://raw.githubusercontent.com/bberenz/sniffer/master/secret-agent.png
 // @include      *://*.steamgifts.com/*
-// @version      1.0.0
+// @version      1.0.1
 // @downloadURL  https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.user.js
 // @updateURL    https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.meta.js
 // @require      https://code.jquery.com/jquery-1.12.3.min.js
@@ -46,15 +46,15 @@ var Found = {
   DECODED: {
     _name: "decoded",
     ASCII: { _name: "decodedAscii", weight: 1, category: "DECODED", detail: "Decoded from ascii numbers:" },
-    BASE64: { _name: "decodedBase64", weight: 2, category: "DECODED", detail: "Decoded from a base64 string:" },
-    BINARY: { _name: "decodedBinary", weight: 2, category: "DECODED", detail: "Decoded from a binary sequence:" },
-    GENETIC: { _name: "decodedGenetic", weight: 2, category: "DECODED", detail: "Decoded from a genetic sequence:" },
+    BASE64: { _name: "decodedBase64", weight: 1, category: "DECODED", detail: "Decoded from a base64 string:" },
+    BINARY: { _name: "decodedBinary", weight: 1, category: "DECODED", detail: "Decoded from a binary sequence:" },
+    GENETIC: { _name: "decodedGenetic", weight: 1, category: "DECODED", detail: "Decoded from a genetic sequence:" },
     HEX: { _name: "decodedHex", weight: 1, category: "DECODED", detail: "Decoded from a hex sequence:" },
     MORSE: { _name: "decodedMorse", weight: 1, category: "DECODED", detail: "Decoded from morse code sequence:" }
   },
   SEQUENCE: {
     _name: "sequence",
-    BASE64: { _name: "base64", weight: 1, category: "SEQUENCE", detail: "Looks base64 encoded:" },
+    BASE64: { _name: "base64", weight: 0, category: "SEQUENCE", detail: "Looks base64 encoded:" },
     DECIMAL: { _name: "decimal", weight: 0, category: "SEQUENCE", detail: "Looks like a decimal sequence:" },
     GENETIC: { _name: "genetic", weight: 0, category: "SEQUENCE", detail: "Looks like DNA code:" },
     GIFT: { _name: "gift", weight: 3, category: "SEQUENCE", detail: "Looks like a giveaway code:", format: "<a href='/giveaway/$1/' target='_blank'>$1</a><hr/>" },
@@ -144,15 +144,9 @@ var checkIf = {
     return false;
   },
 
-  usable: function(string) {
-    return !!(string.match(/^[\w,.!?: \/]+$/));
-  },
-
-  falseB64: function(string) {
-    //catch false positives - normal words that just happen to decode properly
-    var catches = ["Unlucky"];
-
-    return (catches.indexOf(string) > -1);
+  visible: function(string) {
+    // valid, visible ascii only
+    return !!string.match(/^[\x20-\x7E]+$/);
   },
 
   _measure: document.createElement("canvas").getContext("2d"),
@@ -281,7 +275,7 @@ var lookFor = {
     if (!string) { return; }
 
     var seq = string.match(/(\b[GUAC]{3}(\s+|$))+/g);
-    if (seq) { addFinding(postId, Found.SEQUENCE.GENETIC, seq); }
+    if (seq && seq[0] !== "AAA") { addFinding(postId, Found.SEQUENCE.GENETIC, seq); }
   },
 
   binary: function(postId, string) {
@@ -297,15 +291,15 @@ var lookFor = {
         if (each[i]) { decode += String.fromCharCode(parseInt(each[i], 2)); }
       }
 
-      if (decode) {
+      if (decode && checkIf.visible(decode)) {
         addFinding(postId, Found.DECODED.BINARY, decode);
       }
     }
   },
-  
+
   hex: function(postId, string) {
     if (!string) { return; }
-    
+
     var seq = string.toUpperCase().match(/([0-9A-F\s]{8,})+/g);
     if (seq) {
       var each = seq.join("").replace(/\s+/g, "").match(/([0-9A-F]{2})/g);
@@ -316,15 +310,15 @@ var lookFor = {
         if (each[i]) { decode += String.fromCharCode(parseInt(each[i], 16)); }
       }
 
-      if (decode && checkIf.usable(decode)) {
+      if (decode && checkIf.visible(decode)) {
         addFinding(postId, Found.DECODED.HEX, decode);
       }
     }
   },
-  
+
   ascii: function(postId, string) {
     if (!string) { return; }
-    
+
     var seq = string.toUpperCase().match(/([0-9\s]{8,})+/g);
     if (seq) {
       var each = seq.join("").match(/([0-9]{2,3}\s?)/g);
@@ -335,7 +329,7 @@ var lookFor = {
         if (each[i]) { decode += String.fromCharCode(parseInt(each[i], 10)); }
       }
 
-      if (decode && checkIf.usable(decode)) {
+      if (decode && checkIf.visible(decode)) {
         addFinding(postId, Found.DECODED.ASCII, decode);
       }
     }
@@ -347,7 +341,7 @@ var lookFor = {
     var seq = string.match(/(\b[\dA-Fa-f]+\b(\s+|$)){3,}/g);
     if (seq) {
       addFinding(postId, Found.SEQUENCE.DECIMAL, seq);
-      
+
       lookFor.hex(postId, string);
       lookFor.ascii(postId, string);
     }
@@ -356,12 +350,12 @@ var lookFor = {
   base64: function(postId, string) {
     if (!string) { return; }
 
-    var seq = string.match(/\b[A-Za-z0-9+\/]{5,}=*\b/g);
+    var seq = string.match(/\b[A-Za-z0-9+\/]{4,}={0,2}(\s|$)/g);
     if (seq) {
       for(var i=0; i<seq.length; i++) {
         try {
           var decode = atob(seq[i]);
-          if (checkIf.usable(decode) && !checkIf.falseB64(seq[i])) {
+          if (seq[i].length % 4 === 0 && checkIf.visible(decode)) {
             addFinding(postId, Found.SEQUENCE.BASE64, seq[i]);
             addFinding(postId, Found.DECODED.BASE64, decode);
           }
