@@ -5,7 +5,7 @@
 // @description  Sniff out hidden content on steamgifts.com posts
 // @icon         https://raw.githubusercontent.com/bberenz/sniffer/master/secret-agent.png
 // @include      *://*.steamgifts.com/*
-// @version      1.0.2
+// @version      1.0.3
 // @downloadURL  https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.user.js
 // @updateURL    https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.meta.js
 // @require      https://code.jquery.com/jquery-1.12.3.min.js
@@ -274,8 +274,8 @@ var lookFor = {
   genetic: function(postId, string) {
     if (!string) { return; }
 
-    var seq = string.match(/(\b[GUAC]{3}(\s+|$))+/g);
-    if (seq && seq[0] !== "AAA") { addFinding(postId, Found.SEQUENCE.GENETIC, seq); }
+    var seq = string.match(/(\b[GUAC]{3}(?:\s+|$))+/g);
+    if (seq && seq[0].trim() !== "AAA") { addFinding(postId, Found.SEQUENCE.GENETIC, seq); }
   },
 
   binary: function(postId, string) {
