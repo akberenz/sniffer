@@ -5,7 +5,7 @@
 // @description  Sniff out hidden content on steamgifts.com posts
 // @icon         https://raw.githubusercontent.com/bberenz/sniffer/master/secret-agent.png
 // @include      *://*.steamgifts.com/*
-// @version      1.0.4
+// @version      1.0.5
 // @downloadURL  https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.user.js
 // @updateURL    https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.meta.js
 // @require      https://code.jquery.com/jquery-1.12.3.min.js
@@ -445,7 +445,7 @@ var actOn = {
   },
 
   page: function($doc) {
-    $.each($doc.find(".markdown"), function(idx, sniff) {
+    $.each($doc.find(".markdown").not(".comments__entity__description"), function(idx, sniff) {
       try {
         var $sniff = $(sniff),
             postId = $sniff.parents(".comment__summary").attr("id");
