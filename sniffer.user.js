@@ -5,7 +5,7 @@
 // @description  Sniff out hidden content on steamgifts.com posts
 // @icon         https://raw.githubusercontent.com/bberenz/sniffer/master/secret-agent.png
 // @include      *://*.steamgifts.com/*
-// @version      1.0.5
+// @version      1.0.6
 // @downloadURL  https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.user.js
 // @updateURL    https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.meta.js
 // @require      https://code.jquery.com/jquery-1.12.3.min.js
@@ -41,7 +41,8 @@ var Found = {
     GIBBERISH: { _name: "gibberish", weight: 0, category: "SUSPICIOUS", detail: "Potentially useful text:" },
     LOCATION: { _name: "location", weight: -1, category: "SUSPICIOUS", detail: "Located under topic:" },
     OBSCURED: { _name: "obscured", weight: 1, category: "SUSPICIOUS", detail: "Potentially obscured link:" },
-    SINGULAR: { _name: "singular", weight: 0, category: "SUSPICIOUS", detail: "Individually marked:", format: "$1 " }
+    SINGULAR: { _name: "singular", weight: 0, category: "SUSPICIOUS", detail: "Individually marked:", format: "$1 " },
+    GROUPED: { _name: "grouped", weight: 1, category: "SUSPICIOUS", detail: "First characters from grouped lines:" }
   },
   DECODED: {
     _name: "decoded",
@@ -196,6 +197,23 @@ var lookFor = {
       if (title) {
         addFinding(postId, Found.HIDDEN.HOVER, title);
         lookFor.gibberish(postId, title);
+      }
+    }
+  },
+
+  groupedLines: function(postId, $elm) {
+    if ($elm.is("p")) {
+      var lines = $elm.find("br").length + 1;
+
+      if (lines == 5 || lines == 8) {
+        var group = $elm.text().split("\n"),
+            firsts = [];
+
+        for(var i=0; i<group.length; i++) {
+          firsts.push(group[i][0]);
+        }
+
+        addFinding(postId, Found.SUSPICIOUS.GROUPED, firsts.join(""));
       }
     }
   },
@@ -430,6 +448,7 @@ var actOn = {
         // search for something interesting
         lookFor.anchor(postId, $child);
         lookFor.imageText(postId, $child);
+        lookFor.groupedLines(postId, $child);
         lookFor.formatted(postId, $child);
         lookFor.obscured(postId, cText);
         lookFor.morse(postId, cText);
