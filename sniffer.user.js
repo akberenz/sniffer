@@ -5,7 +5,7 @@
 // @description  Sniff out hidden content on steamgifts.com posts
 // @icon         https://raw.githubusercontent.com/bberenz/sniffer/master/secret-agent.png
 // @include      *://*.steamgifts.com/*
-// @version      1.0.6
+// @version      1.0.7
 // @downloadURL  https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.user.js
 // @updateURL    https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.meta.js
 // @require      https://code.jquery.com/jquery-1.12.3.min.js
@@ -230,7 +230,7 @@ var lookFor = {
   combiningSingular: function(postId, string) {
     if (!string) { return; }
 
-    var combining = string.replace(/\u1F600-\u1F64F/g, "").match(/[\u0000-\u007F](?=[\u0300-\u036F\u1AB0-\u1AFF\u1DC0-\u1DFF\u20D0-\u20FF\uFE20-\uFE2F])/g);
+    var combining = string.replace(/\u1F600-\u1F64F/g, "").match(/[\u0000-\u007F](?=[\u0300-\u036F\u1AB0-\u1AFF\u1DC0-\u1DFF\u200E\u202A-\u202E\u20D0-\u20FF\uFE20-\uFE2F])/g);
     if (combining && combining.join("").trim().length) {
       addFinding(postId, Found.SUSPICIOUS.SINGULAR, combining);
     }
