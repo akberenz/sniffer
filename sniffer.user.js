@@ -5,15 +5,22 @@
 // @description  Sniff out hidden content on steamgifts.com posts
 // @icon         https://raw.githubusercontent.com/bberenz/sniffer/master/secret-agent.png
 // @include      *://*.steamgifts.com/*
-// @version      1.0.8
+// @version      1.0.9
 // @downloadURL  https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.user.js
 // @updateURL    https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.meta.js
 // @require      https://code.jquery.com/jquery-1.12.3.min.js
 // @grant        GM_addStyle
+// @grant        GM_getValue
+// @grant        GM_setValue
 // ==/UserScript==
 */
 
 //  SETUP  //
+var OPTIONS = {
+  pinned: { key: "pinned", value: GM_getValue("pinned", false), text: "Keep Pinned" },
+  alwaysAll: { key: "alwaysAll", value: GM_getValue("alwaysAll", false), text: "Always Show All" }
+};
+
 var BELIEFS = [
   { style: "suspicion_none", wording: "Dubious suspicion" },
   { style: "suspicion_low", wording: "Possible suspicion" },
@@ -539,46 +546,136 @@ var actOn = {
 };
 
 var visualize = {
-  style: function() {
-    GM_addStyle("div.comment__secrets{ display: inline-block; cursor: pointer; margin-right: 6px; }" +
-                ".suspicion_none{ color: #DDD; }" +
-                ".suspicion_low { color: #BBB; }" +
-                ".suspicion_med { color: #777; }" +
-                ".suspicion_high{ color: #111; }" +
-                ".suspicion__content{ background-color: #222; border: 1px solid #2D291F; border-radius: 4px; box-shadow: 4px 4px 7px #555; z-index: 1000; "+
-                "                     display: none; position: absolute; max-width: 256px; padding: 5px; color: #B9A98F; word-wrap: break-word; }" +
-                ".suspicion__content hr:not(.split){ border: 1px solid #333; border-top: none; margin: 0.15em; }" +
-                ".suspicion__content div > hr:not(.split):last-of-type{ display: none; }" +
-                ".suspicion__content .fa{ color: #FFF; }" +
-                ".suspicion__results__inner-wrap > div:not(:first-of-type){ margin-top: 0.5em; }" +
-                ".suspicion__content strong{ color: #EDEBE5; }" +
-                ".suspicion__content a, .suspicion__content a.fa{ color: #B99964; }" +
-                ".suspicion__content a:hover, .suspicion__content a.fa:hover{ color: #B9780F; }" +
-                ".suspicion__content a.local{ color: #B96464; }" +
-                ".suspicion__content a.local:hover{ color: #B90F0F; }");
-
-    //color compatibility with dark theme
-    if ($("body").css("background-color") !== "rgb(149, 164, 192)") {
-      console.log("Assuming dark theme and adjusting colors");
-      GM_addStyle(".suspicion_none{ color: #2E2E2C; }" +
-                  ".suspicion_low { color: #5C5C58; }" +
-                  ".suspicion_med { color: #B8B8B0; }" +
-                  ".suspicion_high{ color: #FFFFFF; }" +
-                  ".suspicion__content{ background-color: #f0f2f5; border: 1px solid #D2D6E0; color: #465670; }" +
-                  ".suspicion__content hr:not(.split){ border-color: #d0d2d5; }" +
-                  ".suspicion__content .fa{ color: #000; }" +
-                  ".suspicion__content strong{ color: #12141A; }" +
-                  ".suspicion__content a, .suspicion__content a.fa{ color: #4B72D4; }" +
-                  ".suspicion__content a:hover, .suspicion__content a.fa:hover{ color: #8A9FD4; }" +
-                  ".suspicion__content a.local{ color: #AF4AD4; }" +
-                  ".suspicion__content a.local:hover{ color: #DAA6ED; }");
-    }
+  _bits: {
+    box: $("<div/>").addClass("suspicion__content")
+            .html("<div class='suspicion__results__icons'>" +
+                  " <em class='fa fa-user-secret is-selected'></em>" +
+                  " <em class='fa fa-gear pull-right'></em>" +
+                  "</div>" +
+                  "<div class='suspicion__results__outer-wrap'></div>"),
+    content: null,
+    opts: $("<div/>").addClass("suspicion__results__inner-wrap")
   },
 
-  _box: $("<div/>").addClass("suspicion__content")
-                   .html("<em class='fa fa-user-secret'></em><div class='suspicion__results__outer-wrap'></div>")
-                   .on('mouseleave', function() { $(this).css({"display": "none"}).find(".suspicion__results__outer-wrap").html(""); })
-                   .appendTo($("body")),
+  init: {
+    style: function() {
+      GM_addStyle("div.comment__secrets{ display: inline-block; cursor: pointer; margin-right: 6px; }" +
+                  ".suspicion_none{ color: #DDD; }" +
+                  ".suspicion_low { color: #BBB; }" +
+                  ".suspicion_med { color: #777; }" +
+                  ".suspicion_high{ color: #111; }" +
+                  ".suspicion__content{ background-color: #222; border: 1px solid #2D291F; border-radius: 4px; box-shadow: 4px 4px 7px #555; z-index: 1000; "+
+                  "                     display: none; position: absolute; max-width: 256px; padding: 5px; color: #B9A98F; word-wrap: break-word; }" +
+                  ".suspicion__content hr:not(.split){ border: 1px solid #333; border-top: none; margin: 0.15em; }" +
+                  ".suspicion__content div > hr:not(.split):last-of-type{ display: none; }" +
+                  ".suspicion__content .fa{ color: #FFF; opacity: 0.4; }" +
+                  ".suspicion__content .fa.is-selected, .suspicion__content .form__checkbox .fa{ opacity: 1.0; }" +
+                  ".suspicion__results__inner-wrap > .suspicion__section:not(:first-of-type){ margin-top: 0.5em; }" +
+                  ".suspicion__content strong{ color: #EDEBE5; }" +
+                  ".suspicion__content a, .suspicion__content a.fa{ color: #B99964; }" +
+                  ".suspicion__content a:hover, .suspicion__content a.fa:hover{ color: #B9780F; }" +
+                  ".suspicion__content a.local{ color: #B96464; }" +
+                  ".suspicion__content a.local:hover{ color: #B90F0F; }" +
+                  ".suspicion__content .form__checkbox{ color: inherit; justify-content: space-between; border-bottom: none; }");
+
+      //color compatibility with dark theme
+      if ($("body").css("background-color") !== "rgb(149, 164, 192)") {
+        console.log("Assuming dark theme and adjusting colors");
+        GM_addStyle(".suspicion_none{ color: #2E2E2C; }" +
+                    ".suspicion_low { color: #5C5C58; }" +
+                    ".suspicion_med { color: #B8B8B0; }" +
+                    ".suspicion_high{ color: #FFFFFF; }" +
+                    ".suspicion__content{ background-color: #f0f2f5; border: 1px solid #D2D6E0; color: #465670; }" +
+                    ".suspicion__content hr:not(.split){ border-color: #d0d2d5; }" +
+                    ".suspicion__content .fa{ color: #000; }" +
+                    ".suspicion__content strong{ color: #12141A; }" +
+                    ".suspicion__content a, .suspicion__content a.fa{ color: #4B72D4; }" +
+                    ".suspicion__content a:hover, .suspicion__content a.fa:hover{ color: #8A9FD4; }" +
+                    ".suspicion__content a.local{ color: #AF4AD4; }" +
+                    ".suspicion__content a.local:hover{ color: #DAA6ED; }");
+      }
+    },
+
+    form: function() {
+      var $box = visualize._bits.box,
+          $main = $box.find(".fa-user-secret"),
+          $alt = $box.find(".fa-gear");
+
+      $main.on("click", function() {
+        if ($alt.hasClass("is-selected")) {
+          $main.addClass("is-selected");
+          $alt.removeClass("is-selected");
+
+          visualize._bits.opts.detach();
+          $box.find(".suspicion__results__outer-wrap").html(visualize._bits.content);
+
+          //always all
+          if (OPTIONS.alwaysAll.value) { $(".local").click(); }
+        }
+      });
+
+      $alt.on("click", function() {
+        if ($main.hasClass("is-selected")) {
+          $main.removeClass("is-selected");
+          $alt.addClass("is-selected");
+
+          var wide = visualize._bits.content.width();
+          visualize._bits.content.detach();
+
+          $box.find(".suspicion__results__outer-wrap").html(visualize._bits.opts.css("width", wide));
+
+          visualize._bits.opts.html("<strong>Options</strong>");
+          $.each(OPTIONS, function(i, opt) {
+            var $content = visualize.init.formBlock(opt);
+            visualize._bits.opts.append($content).append("<hr/>");
+          });
+        }
+      });
+
+      $("body").append($box);
+
+      visualize.init.style();
+      visualize.init.options();
+    },
+
+    formBlock: function(setting) {
+      var $content = $("<div/>").addClass("form__checkbox").append(setting.text)
+                      .append("<i class='form__checkbox__default fa fa-square-o'></i>")
+                      .append("<i class='form__checkbox__hover fa fa-square'></i>")
+                      .append("<i class='form__checkbox__selected fa fa-check-square'></i>");
+
+      if (setting.value) { $content.addClass("is-selected"); }
+
+      $content.on("click", function() {
+        $content.toggleClass("is-selected");
+
+        setting.value = !setting.value;
+        GM_setValue(setting.key, setting.value);
+        visualize.init.options();
+      });
+
+      return $content;
+    },
+
+    options: function() {
+      var $box = visualize._bits.box;
+
+      //pinned
+      var turnOff = function() {
+        $box.css({"display": "none"}).find(".suspicion__results__outer-wrap").html("");
+        $box.find(".fa-user-secret").addClass("is-selected");
+        $box.find(".fa-gear").removeClass("is-selected");
+      };
+
+      if (OPTIONS.pinned.value) {
+        $box.off("mouseleave click").on("click", function() { return false; });
+        $("body").off("click").on("click", turnOff);
+      } else {
+        $box.off("mouseleave click").on('mouseleave', turnOff);
+        $("body").off("click");
+      }
+    }
+  },
 
   reveal: function(elm, display) {
     var $elm = $(elm),
@@ -588,26 +685,29 @@ var visualize = {
     var $content = $("<div/>").addClass("suspicion__results__inner-wrap");
     for(var i=0; i<display.primary.length; i++) {
       var data = display.primary[i];
-      $content.append("<div><strong>"+ data.title +"</strong><br/>"+ data.content +"</div>");
+      $content.append("<div class='suspicion__section'><strong>"+ data.title +"</strong><br/>"+ data.content +"</div>");
     }
 
     if (display.secondary.length) {
       var $more = $("<a/>").addClass("local").attr("href", "#").html("Show All Clues")
-                          .on("click", function(evt) {
-                            for(var i=0; i<display.secondary.length; i++) {
-                              var data = display.secondary[i];
-                              $content.append("<div><strong>"+ data.title +"</strong><p>"+ data.content +"</p></div>");
-                            }
+                      .on("click", function(evt) {
+                        for(var i=0; i<display.secondary.length; i++) {
+                          var data = display.secondary[i];
+                          $content.append("<div class='suspicion__section'><strong>"+ data.title +"</strong><p>"+ data.content +"</p></div>");
+                        }
 
-                            $(this).hide();
-                            evt.preventDefault();
-                          });
+                        $(this).hide();
+                        evt.preventDefault();
+                      });
 
       $content.append("<hr class='split' />").append($more);
+
+      if (OPTIONS.alwaysAll.value) { $more.click(); }
     }
 
-    visualize._box.css({"display": "block", "top": Math.floor(offset.top - pad), "left": Math.floor(offset.left - pad)})
-                  .find(".suspicion__results__outer-wrap").html($content);
+    visualize._bits.content = $content;
+    visualize._bits.box.css({"display": "block", "top": Math.floor(offset.top - pad), "left": Math.floor(offset.left - pad)})
+        .find(".suspicion__results__outer-wrap").html($content);
   },
 
   icon: function($doc) {
@@ -668,7 +768,7 @@ var visualize = {
           if (highest < 0) { highest = 0; }
           var $secret = $("<div/>").addClass("comment__secrets").addClass(BELIEFS[highest].style)
                                    .html("<em class='fa fa-user-secret' title='"+ BELIEFS[highest].wording +"'></em>")
-                                   .on('click', function() { visualize.reveal(this, display); });
+                                   .on('click', function() { visualize.reveal(this, display); return false; });
 
           if (_postId === "undefined") {
             var $base = $doc.find(".page__description__display-state");
@@ -694,7 +794,7 @@ var visualize = {
 // // // // //
 
 //one-time calls
-visualize.style();
+visualize.init.form();
 lookFor.topic();
 
 //sniffer calls
