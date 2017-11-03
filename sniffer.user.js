@@ -5,7 +5,7 @@
 // @description  Sniff out hidden content on steamgifts.com posts
 // @icon         https://raw.githubusercontent.com/bberenz/sniffer/master/secret-agent.png
 // @include      *://*.steamgifts.com/*
-// @version      1.0.9
+// @version      1.0.10
 // @downloadURL  https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.user.js
 // @updateURL    https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.meta.js
 // @require      https://code.jquery.com/jquery-1.12.3.min.js
@@ -109,14 +109,34 @@ var perform = {
   },
 
   scriptDecode: function(string) {
-    var encoded = string.split("-");
-        encoded.shift();
+    var base = 16, rot = 13, rotAt = 10,
+        substitute = perform.rotN("ABCDEFGHIJKLMNOPQRSTUVWXYZ", 13),
+        encoded = string.split("-");
 
-    for(var i=0; i<encoded.length; i++) {
-      encoded[i] = String.fromCharCode(parseInt(encoded[i], 16));
+    encoded.shift(); //first value not used in decryption
+    if (encoded.length == 1) {
+      var reset = [];
+      $.each(encoded[0].split(""), function(i, ltr) {
+        var idx = substitute.indexOf(ltr);
+        if (~idx) {
+          reset.push(idx);
+        } else {
+          reset.push(ltr);
+        }
+      });
+
+      if (reset.length > rotAt) {
+        rot = substitute.length - parseInt(reset.splice(rotAt).join(""), base);
+      }
+
+      encoded = reset.join("").match(/.{2}/g);
     }
 
-    return perform.rotN(encoded.join(""), 13);
+    for(var i=0; i<encoded.length; i++) {
+      encoded[i] = String.fromCharCode(parseInt(encoded[i], base));
+    }
+
+    return perform.rotN(encoded.join(""), rot);
   }
 };
 

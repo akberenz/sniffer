@@ -1,5 +1,6 @@
 ### Recent Updates
 
+**1.0.10** - Add additional decode methods from other script hidders
 **1.0.9** - Added options panel / can put details pane in pinned mode  
 **1.0.8** - Decrease false positive rates on grouped lines  
 **1.0.7** - Add additional hidden combining characters to sniffs  
