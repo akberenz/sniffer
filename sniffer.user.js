@@ -5,7 +5,7 @@
 // @description  Sniff out hidden content on steamgifts.com posts
 // @icon         https://raw.githubusercontent.com/bberenz/sniffer/master/secret-agent.png
 // @include      *://*.steamgifts.com/*
-// @version      1.1.1
+// @version      1.1.2
 // @downloadURL  https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.user.js
 // @updateURL    https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.meta.js
 // @require      https://code.jquery.com/jquery-1.12.3.min.js
@@ -63,6 +63,7 @@ var Found = {
   SEQUENCE: {
     _name: "sequence",
     BASE64: { _name: "base64", weight: 0, category: "SEQUENCE", detail: "Looks base64 encoded:" },
+    BINARY: { _name: "binary", weight: 0, category: "SEQUENCE", detail: "Looks like binary code:" },
     DECIMAL: { _name: "decimal", weight: 0, category: "SEQUENCE", detail: "Looks like a decimal sequence:" },
     GENETIC: { _name: "genetic", weight: 0, category: "SEQUENCE", detail: "Looks like DNA code:" },
     GIFT: { _name: "gift", weight: 3, category: "SEQUENCE", detail: "Looks like a giveaway code:", format: "<a href='/giveaway/$1/' target='_blank'>$1</a><hr/>" },
@@ -174,7 +175,7 @@ var checkIf = {
 
   visible: function(string) {
     // valid, visible ascii only
-    return !!string.match(/^[\x20-\x7E]+$/);
+    return !!string.match(/^[\x20-\x7E\r\n]+$/);
   },
 
   _measure: document.createElement("canvas").getContext("2d"),
@@ -291,7 +292,7 @@ var lookFor = {
   obscured: function(finds, postId, string) {
     if (!string) { return; }
 
-    var seq = string.match(/\b\w{5}:\/\/.+?(\s|$)/g);
+    var seq = string.match(/\b\w{4,5}:\/\/.+?(\s|$)/g);
     if (seq) {
       for(var i=0; i<seq.length; i++) {
         if (seq[i].toLowerCase().indexOf("http") === -1) {
@@ -353,16 +354,21 @@ var lookFor = {
 
     var seq = string.match(/([01\s]{8,})+/g);
     if (seq) {
-      var each = seq.join("").replace(/\s+/g, "").match(/([01]{8})/g);
-      var decode = "";
+      var split = seq.join("").replace(/\s+/g, "").match(/([01]{8})/g),
+          complete = ""
+          decoded = "";
 
-      if (!each) { return; }
-      for(var i = 0; i<each.length; i++) {
-        if (each[i]) { decode += String.fromCharCode(parseInt(each[i], 2)); }
+      if (!split) { return; }
+      for(var i = 0; i<split.length; i++) {
+        if (split[i]) {
+          complete += split[i];
+          decoded += String.fromCharCode(parseInt(split[i], 2));
+        }
       }
 
-      if (decode && checkIf.visible(decode)) {
-        addFinding(finds, postId, Found.DECODED.BINARY, decode);
+      if (decoded && checkIf.visible(decoded)) {
+        addFinding(finds, postId, Found.SEQUENCE.BINARY, complete);
+        addFinding(finds, postId, Found.DECODED.BINARY, decoded);
       }
     }
   },
