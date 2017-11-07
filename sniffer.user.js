@@ -5,7 +5,7 @@
 // @description  Sniff out hidden content on steamgifts.com posts
 // @icon         https://raw.githubusercontent.com/bberenz/sniffer/master/secret-agent.png
 // @include      *://*.steamgifts.com/*
-// @version      1.1.2
+// @version      1.1.3
 // @downloadURL  https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.user.js
 // @updateURL    https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.meta.js
 // @require      https://code.jquery.com/jquery-1.12.3.min.js
@@ -874,6 +874,10 @@ var init = {
     var turnOff = function() {
       $box.css({"display": "none"}).find(".suspicion__results__outer-wrap").html("");
       bits.focusOn($box.find("#suspect-main"));
+
+      //clear custom input
+      bits.input.find("input").val("");
+      bits.input.find(".suspicion__section").html("");
     };
 
     if (OPTIONS.pinned.value) {
