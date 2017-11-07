@@ -5,7 +5,7 @@
 // @description  Sniff out hidden content on steamgifts.com posts
 // @icon         https://raw.githubusercontent.com/bberenz/sniffer/master/secret-agent.png
 // @include      *://*.steamgifts.com/*
-// @version      1.1.0
+// @version      1.1.1
 // @downloadURL  https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.user.js
 // @updateURL    https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.meta.js
 // @require      https://code.jquery.com/jquery-1.12.3.min.js
@@ -875,6 +875,14 @@ var init = {
       $("body").off("click").on("click", turnOff);
     } else {
       $box.off("mouseleave click").on('mouseleave', turnOff);
+      $box.off("mouseleave click").on('mouseleave', function(evt) {
+        // Chrome occasionally triggers mouseleave events when clicking
+        var $hovering = $(document.elementFromPoint(evt.clientX, evt.clientY));
+        if (!$hovering.hasClass("suspicion__content")) { $hovering = $hovering.parents(".suspicion__content"); }
+        if (this === $hovering[0]) { return true; }
+
+        turnOff();
+      });
       $("body").off("click");
     }
   }

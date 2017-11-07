@@ -1,5 +1,6 @@
 ### Recent Updates
 
+**1.1.1** - Fix an issue where Chrome triggers mouseleave events when clicking
 **1.1.0** - New Feature: Manual input, quickly evaluate text the sniffer missed
 - - -
 **1.0.11** - Fix problem with pinned mode not letting you click links
