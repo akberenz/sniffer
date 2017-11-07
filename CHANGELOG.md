@@ -1,5 +1,7 @@
 ### Recent Updates
 
+**1.1.0** - New Feature: Manual input, quickly evaluate text the sniffer missed
+- - -
 **1.0.11** - Fix problem with pinned mode not letting you click links
 **1.0.10** - Add additional decode methods from other script hidders
 **1.0.9** - Added options panel / can put details pane in pinned mode  

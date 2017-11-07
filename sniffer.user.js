@@ -5,7 +5,7 @@
 // @description  Sniff out hidden content on steamgifts.com posts
 // @icon         https://raw.githubusercontent.com/bberenz/sniffer/master/secret-agent.png
 // @include      *://*.steamgifts.com/*
-// @version      1.0.11
+// @version      1.1.0
 // @downloadURL  https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.user.js
 // @updateURL    https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.meta.js
 // @require      https://code.jquery.com/jquery-1.12.3.min.js
@@ -81,18 +81,18 @@ var Found = {
 
 var findings = {};
 
-function addFinding(postId, sort, value) {
+function addFinding(foundList, postId, sort, value) {
   var category = Found[sort.category]._name,
       type = sort._name;
 
-  if (!findings[postId]) { findings[postId] = {}; }
-  if (!findings[postId][category]) { findings[postId][category] = {}; }
-  if (!findings[postId][category][type]) { findings[postId][category][type] = []; }
+  if (!foundList[postId]) { foundList[postId] = {}; }
+  if (!foundList[postId][category]) { foundList[postId][category] = {}; }
+  if (!foundList[postId][category][type]) { foundList[postId][category][type] = []; }
 
-  var foundArr = findings[postId][category][type];
+  var foundArr = foundList[postId][category][type];
 
   if (Array.isArray(value)) {
-    findings[postId][category][type] = foundArr.concat(value);
+    foundList[postId][category][type] = foundArr.concat(value);
   } else {
     foundArr.push(value);
   }
@@ -190,45 +190,58 @@ var checkIf = {
     return !((postId !== "undefined" && !$doc.find("[id='"+ postId +"']").length)
               || (postId === "undefined" && !$doc.find("header").length)); //special case for root post
   }
-}
+};
 
 /* Check for and record if match */
 var lookFor = {
-  topic: function() {
-    var topic = $(".sidebar__navigation__item.is-selected").text().trim();
-    if (topic === "Puzzles") { addFinding(undefined, Found.SUSPICIOUS.LOCATION, topic); }
+  anything: function(findings, postId, $elm) {
+    lookFor.anchor(findings, postId, $elm);
+    lookFor.imageText(findings, postId, $elm);
+    lookFor.groupedLines(findings, postId, $elm);
+    lookFor.formatted(findings, postId, $elm);
+    lookFor.obscured(findings, postId, $elm.text());
+    lookFor.morse(findings, postId, $elm.text());
+    lookFor.genetic(findings, postId, $elm.text());
+    lookFor.binary(findings, postId, $elm.text());
+    lookFor.decimal(findings, postId, $elm.text());
+    lookFor.base64(findings, postId, $elm.text());
   },
 
-  anchor: function(postId, $elm) {
+  topic: function(finds) {
+    var topic = $(".sidebar__navigation__item.is-selected").text().trim();
+    if (topic === "Puzzles") { addFinding(finds, undefined, Found.SUSPICIOUS.LOCATION, topic); }
+  },
+
+  anchor: function(finds, postId, $elm) {
     if ($elm.length && $elm.is("a")) {
       var href = $elm.attr("href");
 
       if (!$elm.html() || checkIf.small($elm.text())) {
-        if (href) { addFinding(postId, Found.HIDDEN.NULL_ELM, href); }
+        if (href) { addFinding(finds, postId, Found.HIDDEN.NULL_ELM, href); }
       } else {
         //not a hidden link, but check if it's location is useful
-        lookFor.length(postId, href);
+        lookFor.length(finds, postId, href);
       }
     }
   },
 
-  formatted: function(postId, $elm) {
+  formatted: function(finds, postId, $elm) {
     if ($elm.is("strong") || $elm.is("em") || $elm.is("code") || $elm.hasClass("spoiler")) {
-      lookFor.singles(postId, $elm.text());
+      lookFor.singles(finds, postId, $elm.text());
     }
   },
 
-  imageText: function(postId, $elm) {
+  imageText: function(finds, postId, $elm) {
     if ($elm.length && $elm.is("img")) {
       var title = $elm.attr("title");
       if (title) {
-        addFinding(postId, Found.HIDDEN.HOVER, title);
-        lookFor.gibberish(postId, title);
+        addFinding(finds, postId, Found.HIDDEN.HOVER, title);
+        lookFor.gibberish(finds, postId, title);
       }
     }
   },
 
-  groupedLines: function(postId, $elm) {
+  groupedLines: function(finds, postId, $elm) {
     if ($elm.is("p")) {
       var lines = $elm.find("br").length + 1;
 
@@ -251,44 +264,44 @@ var lookFor = {
         }
 
         if (reasonable) {
-          addFinding(postId, Found.SUSPICIOUS.GROUPED, firsts.join(""));
+          addFinding(finds, postId, Found.SUSPICIOUS.GROUPED, firsts.join(""));
         }
       }
     }
   },
 
-  singles: function(postId, string) {
+  singles: function(finds, postId, string) {
     if (!string) { return; }
 
     //single letters
     if (checkIf.singular(string) && string.match(/[A-Za-z0-9]/)) {
-      addFinding(postId, Found.SUSPICIOUS.SINGULAR, string);
+      addFinding(finds, postId, Found.SUSPICIOUS.SINGULAR, string);
     }
   },
 
-  combiningSingular: function(postId, string) {
+  combiningSingular: function(finds, postId, string) {
     if (!string) { return; }
 
     var combining = string.replace(/\u1F600-\u1F64F/g, "").match(/[\u0000-\u007F](?=[\u0300-\u036F\u1AB0-\u1AFF\u1DC0-\u1DFF\u200E\u202A-\u202E\u20D0-\u20FF\uFE20-\uFE2F])/g);
     if (combining && combining.join("").trim().length) {
-      addFinding(postId, Found.SUSPICIOUS.SINGULAR, combining);
+      addFinding(finds, postId, Found.SUSPICIOUS.SINGULAR, combining);
     }
   },
 
-  obscured: function(postId, string) {
+  obscured: function(finds, postId, string) {
     if (!string) { return; }
 
     var seq = string.match(/\b\w{5}:\/\/.+?(\s|$)/g);
     if (seq) {
       for(var i=0; i<seq.length; i++) {
         if (seq[i].toLowerCase().indexOf("http") === -1) {
-          addFinding(postId, Found.SUSPICIOUS.OBSCURED, seq[i]);
+          addFinding(finds, postId, Found.SUSPICIOUS.OBSCURED, seq[i]);
         }
       }
     }
   },
 
-  gibberish: function(postId, string) {
+  gibberish: function(finds, postId, string) {
     if (!string) { return; }
 
     var seq = string.match(/(^|\s)\w{5,8}(\s|$)/g);
@@ -296,13 +309,13 @@ var lookFor = {
       for(var i=0; i<seq.length; i++) {
         var at = seq[i].trim();
         if (at.length != 6 && checkIf.nonsense(at) && !at.match(/^\d+$/)) {
-          addFinding(postId, Found.SUSPICIOUS.GIBBERISH, at);
+          addFinding(finds, postId, Found.SUSPICIOUS.GIBBERISH, at);
         }
       }
     }
   },
 
-  morse: function(postId, string) {
+  morse: function(finds, postId, string) {
     if (!string) { return; }
 
     var seq = string.match(/[\s\\\/.·*_−-]*[.·*_−-]{3,}[\s\\\/.·*_-]*/g);
@@ -310,7 +323,7 @@ var lookFor = {
       for(var i=0; i<seq.length; i++) {
         var at = seq[i].replace(/[.·*]/g, "·").replace(/[_−-]/g, "-").replace(/\r?\n/g, "").trim();
         if (!at.match(/^·+$/) && !at.match(/^-+$/) && at !== '·-·' && at !== '-·-') {
-          addFinding(postId, Found.SEQUENCE.MORSE, at);
+          addFinding(finds, postId, Found.SEQUENCE.MORSE, at);
 
           //try to decode
           var letters = at.split(/\s+/g),
@@ -321,21 +334,21 @@ var lookFor = {
           }
 
           if (decode && decode.length > 3) {
-            addFinding(postId, Found.DECODED.MORSE, decode);
+            addFinding(finds, postId, Found.DECODED.MORSE, decode);
           }
         }
       }
     }
   },
 
-  genetic: function(postId, string) {
+  genetic: function(finds, postId, string) {
     if (!string) { return; }
 
     var seq = string.match(/(\b[GUAC]{3}(?:\s+|$))+/g);
-    if (seq && seq[0].trim() !== "AAA") { addFinding(postId, Found.SEQUENCE.GENETIC, seq); }
+    if (seq && seq[0].trim() !== "AAA") { addFinding(finds, postId, Found.SEQUENCE.GENETIC, seq); }
   },
 
-  binary: function(postId, string) {
+  binary: function(finds, postId, string) {
     if (!string) { return; }
 
     var seq = string.match(/([01\s]{8,})+/g);
@@ -349,12 +362,12 @@ var lookFor = {
       }
 
       if (decode && checkIf.visible(decode)) {
-        addFinding(postId, Found.DECODED.BINARY, decode);
+        addFinding(finds, postId, Found.DECODED.BINARY, decode);
       }
     }
   },
 
-  hex: function(postId, string) {
+  hex: function(finds, postId, string) {
     if (!string) { return; }
 
     var seq = string.toUpperCase().match(/([0-9A-F\s]{8,})+/g);
@@ -368,12 +381,12 @@ var lookFor = {
       }
 
       if (decode && checkIf.visible(decode)) {
-        addFinding(postId, Found.DECODED.HEX, decode);
+        addFinding(finds, postId, Found.DECODED.HEX, decode);
       }
     }
   },
 
-  ascii: function(postId, string) {
+  ascii: function(finds, postId, string) {
     if (!string) { return; }
 
     var seq = string.toUpperCase().match(/([0-9\s]{8,})+/g);
@@ -387,24 +400,24 @@ var lookFor = {
       }
 
       if (decode && checkIf.visible(decode)) {
-        addFinding(postId, Found.DECODED.ASCII, decode);
+        addFinding(finds, postId, Found.DECODED.ASCII, decode);
       }
     }
   },
 
-  decimal: function(postId, string) {
+  decimal: function(finds, postId, string) {
     if (!string) { return; }
 
     var seq = string.match(/(\b[\dA-Fa-f]+\b(\s+|$)){3,}/g);
     if (seq) {
-      addFinding(postId, Found.SEQUENCE.DECIMAL, seq);
+      addFinding(finds, postId, Found.SEQUENCE.DECIMAL, seq);
 
-      lookFor.hex(postId, string);
-      lookFor.ascii(postId, string);
+      lookFor.hex(finds, postId, string);
+      lookFor.ascii(finds, postId, string);
     }
   },
 
-  base64: function(postId, string) {
+  base64: function(finds, postId, string) {
     if (!string) { return; }
 
     var seq = string.match(/\b[A-Za-z0-9+\/]{6,}={0,2}(?:\s|$)/g);
@@ -413,46 +426,46 @@ var lookFor = {
         try {
           var decode = atob(seq[i]);
           if (seq[i].trim().length % 4 === 0 && checkIf.visible(decode)) {
-            addFinding(postId, Found.SEQUENCE.BASE64, seq[i]);
-            addFinding(postId, Found.DECODED.BASE64, decode);
+            addFinding(finds, postId, Found.SEQUENCE.BASE64, seq[i]);
+            addFinding(finds, postId, Found.DECODED.BASE64, decode);
           }
         } catch(ignore) {}
       }
     }
   },
 
-  link: function(postId, string) {
+  link: function(finds, postId, string) {
     if (!string) { return; }
 
     testString = string.toLowerCase();
     if (testString.search(/giveaway\/\w{5}\//) > -1 || testString.search(/giveaways\/\w{8}-/) > -1) {
-      addFinding(postId, Found.SEQUENCE.GIFT_LINK, string);
+      addFinding(finds, postId, Found.SEQUENCE.GIFT_LINK, string);
     } else if (testString.indexOf("http") === 0 && testString.length > 8) {
-      addFinding(postId, Found.SEQUENCE.LINK, string);
+      addFinding(finds, postId, Found.SEQUENCE.LINK, string);
     }
   },
 
-  length: function(postId, string) {
+  length: function(finds, postId, string) {
     if (!string || string.length < 5 || !string.match(/^[\w+?-]+$/)) { return; }
 
     if (string.length == 5) {
       if (string.match(/^[A-Za-z0-9]+$/g)) {
-        addFinding(postId, Found.SEQUENCE.GIFT, string);
+        addFinding(finds, postId, Found.SEQUENCE.GIFT, string);
       } else {
-        addFinding(postId, Found.SEQUENCE.GIFT_PART, string);
+        addFinding(finds, postId, Found.SEQUENCE.GIFT_PART, string);
       }
     } else if (string.length == 7) {
-      addFinding(postId, Found.SEQUENCE.IMGUR, string);
+      addFinding(finds, postId, Found.SEQUENCE.IMGUR, string);
     } else if (string.length == 8) {
-      addFinding(postId, Found.SEQUENCE.EXTERNAL, string);
+      addFinding(finds, postId, Found.SEQUENCE.EXTERNAL, string);
     }
 
     if (string.indexOf("ESGST") == 0) {
-      addFinding(postId, Found.SEQUENCE.GIFT, perform.scriptDecode(string));
+      addFinding(finds, postId, Found.SEQUENCE.GIFT, perform.scriptDecode(string));
     }
   },
 
-  lengthMod: function(postId, string) {
+  lengthMod: function(finds, postId, string) {
     if (!string || string.length < 5 || !string.match(/^[\w+?-]+$/)) { return; }
 
     var sequence = [];
@@ -465,7 +478,7 @@ var lookFor = {
     }
 
     for(var i=0; i<sequence.length; i++) {
-      lookFor.length(postId, sequence[i]);
+      lookFor.length(finds, postId, sequence[i]);
     }
   }
 };
@@ -485,16 +498,7 @@ var actOn = {
         }
 
         // search for something interesting
-        lookFor.anchor(postId, $child);
-        lookFor.imageText(postId, $child);
-        lookFor.groupedLines(postId, $child);
-        lookFor.formatted(postId, $child);
-        lookFor.obscured(postId, cText);
-        lookFor.morse(postId, cText);
-        lookFor.genetic(postId, cText);
-        lookFor.binary(postId, cText);
-        lookFor.decimal(postId, cText);
-        lookFor.base64(postId, cText);
+        lookFor.anything(findings, postId, $child);
 
         //continue on to children
         actOn.tags(postId, $child);
@@ -509,7 +513,7 @@ var actOn = {
             postId = $sniff.parents(".comment__summary").attr("id");
 
         actOn.tags(postId, $sniff);
-        lookFor.combiningSingular(postId, $sniff.text());
+        lookFor.combiningSingular(findings, postId, $sniff.text());
       } catch(e) { console.error(e); }
     });
 
@@ -537,17 +541,17 @@ var actOn = {
                 if (type === Found.SUSPICIOUS.SINGULAR._name) {
                   var joint = findType.join("");
 
-                  lookFor.lengthMod(postId, joint);
-                  lookFor.link(postId, joint);
+                  lookFor.lengthMod(findings, postId, joint);
+                  lookFor.link(findings, postId, joint);
                 }
 
                 //keep these separate to check
                 for(var i=0; i<findType.length; i++) {
                   if (type !== Found.HIDDEN.HOVER._name) {
-                    lookFor.length(postId, findType[i]);
+                    lookFor.length(findings, postId, findType[i]);
                   }
 
-                  lookFor.link(postId, findType[i]);
+                  lookFor.link(findings, postId, findType[i]);
                 }
               }
             }
@@ -565,155 +569,90 @@ var actOn = {
   }
 };
 
+// // // // //
+
+/* Visual components */
+var bits = {
+  box: $("<div/>").addClass("suspicion__content")
+          .html("<div class='suspicion__results__icons'>" +
+                " <em id='suspect-main' class='fa fa-user-secret is-selected'></em>" +
+                " <em id='suspect-input' class='fa fa-keyboard-o'></em>" +
+                " <em id='suspect-setting' class='fa fa-gear pull-right'></em>" +
+                "</div>" +
+                "<div class='suspicion__results__outer-wrap'></div>"),
+  content: null,
+  input: $("<div/>").addClass("suspicion__results__inner-wrap")
+            .html("<strong>Custom Input</strong>" +
+                  "<input class='form__input' type='text' placeholder='Suspicious Text' />" +
+                  "<hr class='split' />" +
+                  "<div class='suspicion__section'></div>"),
+  opts: $("<div/>").addClass("suspicion__results__inner-wrap"), //filled when viewed
+
+  focusOn: function($entity) {
+    bits.box.find("#suspect-main").removeClass("is-selected");
+    bits.box.find("#suspect-input").removeClass("is-selected");
+    bits.box.find("#suspect-setting").removeClass("is-selected");
+
+    $entity.addClass("is-selected");
+  }
+};
+
+/* Setup injection onto page and control components */
 var visualize = {
-  _bits: {
-    box: $("<div/>").addClass("suspicion__content")
-            .html("<div class='suspicion__results__icons'>" +
-                  " <em class='fa fa-user-secret is-selected'></em>" +
-                  " <em class='fa fa-gear pull-right'></em>" +
-                  "</div>" +
-                  "<div class='suspicion__results__outer-wrap'></div>"),
-    content: null,
-    opts: $("<div/>").addClass("suspicion__results__inner-wrap")
-  },
+  style: function() {
+    GM_addStyle("div.comment__secrets{ display: inline-block; cursor: pointer; margin-right: 6px; }" +
+                ".suspicion_none{ color: #DDD; }" +
+                ".suspicion_low { color: #BBB; }" +
+                ".suspicion_med { color: #777; }" +
+                ".suspicion_high{ color: #111; }" +
+                ".suspicion__content{ background-color: #222; border: 1px solid #2D291F; border-radius: 4px; box-shadow: 4px 4px 7px #555; z-index: 1000; "+
+                "                     display: none; position: absolute; max-width: 256px; padding: 5px; color: #B9A98F; word-wrap: break-word; }" +
+                ".suspicion__results__icons{ border-bottom: 1px solid #FFF; display: flex; justify-content: space-between; padding-bottom: 4px; margin-bottom: 4px; }" +
+                ".suspicion__results__icons .fa{ color: #FFF; opacity: 0.4; }" +
+                ".suspicion__results__icons .fa.is-selected, .suspicion__content .form__checkbox .fa{ opacity: 1.0; }" +
+                ".suspicion__content hr:not(.split){ border: 1px solid #333; border-top: none; margin: 0.15em; }" +
+                ".suspicion__content div > hr:not(.split):last-of-type{ display: none; }" +
+                ".suspicion__results__inner-wrap > .suspicion__section:not(:first-of-type){ margin-top: 0.5em; }" +
+                ".suspicion__content strong{ color: #EDEBE5; }" +
+                ".suspicion__content a, .suspicion__content a.fa{ color: #B99964; }" +
+                ".suspicion__content a:hover, .suspicion__content a.fa:hover{ color: #B9780F; }" +
+                ".suspicion__content a.local{ color: #B96464; }" +
+                ".suspicion__content a.local:hover{ color: #B90F0F; }" +
+                ".suspicion__content .form__checkbox{ color: inherit; justify-content: space-between; border-bottom: none; }");
 
-  init: {
-    style: function() {
-      GM_addStyle("div.comment__secrets{ display: inline-block; cursor: pointer; margin-right: 6px; }" +
-                  ".suspicion_none{ color: #DDD; }" +
-                  ".suspicion_low { color: #BBB; }" +
-                  ".suspicion_med { color: #777; }" +
-                  ".suspicion_high{ color: #111; }" +
-                  ".suspicion__content{ background-color: #222; border: 1px solid #2D291F; border-radius: 4px; box-shadow: 4px 4px 7px #555; z-index: 1000; "+
-                  "                     display: none; position: absolute; max-width: 256px; padding: 5px; color: #B9A98F; word-wrap: break-word; }" +
-                  ".suspicion__content hr:not(.split){ border: 1px solid #333; border-top: none; margin: 0.15em; }" +
-                  ".suspicion__content div > hr:not(.split):last-of-type{ display: none; }" +
-                  ".suspicion__content .fa{ color: #FFF; opacity: 0.4; }" +
-                  ".suspicion__content .fa.is-selected, .suspicion__content .form__checkbox .fa{ opacity: 1.0; }" +
-                  ".suspicion__results__inner-wrap > .suspicion__section:not(:first-of-type){ margin-top: 0.5em; }" +
-                  ".suspicion__content strong{ color: #EDEBE5; }" +
-                  ".suspicion__content a, .suspicion__content a.fa{ color: #B99964; }" +
-                  ".suspicion__content a:hover, .suspicion__content a.fa:hover{ color: #B9780F; }" +
-                  ".suspicion__content a.local{ color: #B96464; }" +
-                  ".suspicion__content a.local:hover{ color: #B90F0F; }" +
-                  ".suspicion__content .form__checkbox{ color: inherit; justify-content: space-between; border-bottom: none; }");
-
-      //color compatibility with dark theme
-      if ($("body").css("background-color") !== "rgb(149, 164, 192)") {
-        console.log("Assuming dark theme and adjusting colors");
-        GM_addStyle(".suspicion_none{ color: #2E2E2C; }" +
-                    ".suspicion_low { color: #5C5C58; }" +
-                    ".suspicion_med { color: #B8B8B0; }" +
-                    ".suspicion_high{ color: #FFFFFF; }" +
-                    ".suspicion__content{ background-color: #f0f2f5; border: 1px solid #D2D6E0; color: #465670; }" +
-                    ".suspicion__content hr:not(.split){ border-color: #d0d2d5; }" +
-                    ".suspicion__content .fa{ color: #000; }" +
-                    ".suspicion__content strong{ color: #12141A; }" +
-                    ".suspicion__content a, .suspicion__content a.fa{ color: #4B72D4; }" +
-                    ".suspicion__content a:hover, .suspicion__content a.fa:hover{ color: #8A9FD4; }" +
-                    ".suspicion__content a.local{ color: #AF4AD4; }" +
-                    ".suspicion__content a.local:hover{ color: #DAA6ED; }");
-      }
-    },
-
-    form: function() {
-      var $box = visualize._bits.box,
-          $main = $box.find(".fa-user-secret"),
-          $alt = $box.find(".fa-gear");
-
-      $main.on("click", function() {
-        if ($alt.hasClass("is-selected")) {
-          $main.addClass("is-selected");
-          $alt.removeClass("is-selected");
-
-          visualize._bits.opts.detach();
-          $box.find(".suspicion__results__outer-wrap").html(visualize._bits.content);
-
-          //always all
-          if (OPTIONS.alwaysAll.value) { $(".local").click(); }
-        }
-      });
-
-      $alt.on("click", function() {
-        if ($main.hasClass("is-selected")) {
-          $main.removeClass("is-selected");
-          $alt.addClass("is-selected");
-
-          var wide = visualize._bits.content.width();
-          visualize._bits.content.detach();
-
-          $box.find(".suspicion__results__outer-wrap").html(visualize._bits.opts.css("width", wide));
-
-          visualize._bits.opts.html("<strong>Options</strong>");
-          $.each(OPTIONS, function(i, opt) {
-            var $content = visualize.init.formBlock(opt);
-            visualize._bits.opts.append($content).append("<hr/>");
-          });
-        }
-      });
-
-      $("body").append($box);
-
-      visualize.init.style();
-      visualize.init.options();
-    },
-
-    formBlock: function(setting) {
-      var $content = $("<div/>").addClass("form__checkbox").append(setting.text)
-                      .append("<i class='form__checkbox__default fa fa-square-o'></i>")
-                      .append("<i class='form__checkbox__hover fa fa-square'></i>")
-                      .append("<i class='form__checkbox__selected fa fa-check-square'></i>");
-
-      if (setting.value) { $content.addClass("is-selected"); }
-
-      $content.on("click", function() {
-        $content.toggleClass("is-selected");
-
-        setting.value = !setting.value;
-        GM_setValue(setting.key, setting.value);
-        visualize.init.options();
-      });
-
-      return $content;
-    },
-
-    options: function() {
-      var $box = visualize._bits.box;
-
-      //pinned
-      var turnOff = function() {
-        $box.css({"display": "none"}).find(".suspicion__results__outer-wrap").html("");
-        $box.find(".fa-user-secret").addClass("is-selected");
-        $box.find(".fa-gear").removeClass("is-selected");
-      };
-
-      if (OPTIONS.pinned.value) {
-        $box.off("mouseleave click").on("click", function(evt) { evt.stopPropagation(); });
-        $("body").off("click").on("click", turnOff);
-      } else {
-        $box.off("mouseleave click").on('mouseleave', turnOff);
-        $("body").off("click");
-      }
+    //color compatibility with dark theme
+    if ($("body").css("background-color") !== "rgb(149, 164, 192)") {
+      console.log("Assuming dark theme and adjusting colors");
+      GM_addStyle(".suspicion_none{ color: #2E2E2C; }" +
+                  ".suspicion_low { color: #5C5C58; }" +
+                  ".suspicion_med { color: #B8B8B0; }" +
+                  ".suspicion_high{ color: #FFFFFF; }" +
+                  ".suspicion__content{ background-color: #f0f2f5; border: 1px solid #D2D6E0; color: #465670; }" +
+                  ".suspicion__results__icons .fa{ color: #000; }" +
+                  ".suspicion__results__icons{ border-bottom: 1px solid #000; }" +
+                  ".suspicion__content hr:not(.split){ border-color: #d0d2d5; }" +
+                  ".suspicion__content strong{ color: #12141A; }" +
+                  ".suspicion__content a, .suspicion__content a.fa{ color: #4B72D4; }" +
+                  ".suspicion__content a:hover, .suspicion__content a.fa:hover{ color: #8A9FD4; }" +
+                  ".suspicion__content a.local{ color: #AF4AD4; }" +
+                  ".suspicion__content a.local:hover{ color: #DAA6ED; }");
     }
   },
 
   reveal: function(elm, display) {
-    var $elm = $(elm),
-        offset = $elm.offset(),
+    var offset = $(elm).offset(),
         pad = 6;
 
     var $content = $("<div/>").addClass("suspicion__results__inner-wrap");
     for(var i=0; i<display.primary.length; i++) {
-      var data = display.primary[i];
-      $content.append("<div class='suspicion__section'><strong>"+ data.title +"</strong><br/>"+ data.content +"</div>");
+      $content.append(visualize.section(display.primary[i]));
     }
 
     if (display.secondary.length) {
       var $more = $("<a/>").addClass("local").attr("href", "#").html("Show All Clues")
                       .on("click", function(evt) {
                         for(var i=0; i<display.secondary.length; i++) {
-                          var data = display.secondary[i];
-                          $content.append("<div class='suspicion__section'><strong>"+ data.title +"</strong><p>"+ data.content +"</p></div>");
+                          $content.append(visualize.section(display.secondary[i]));
                         }
 
                         $(this).hide();
@@ -725,9 +664,58 @@ var visualize = {
       if (OPTIONS.alwaysAll.value) { $more.click(); }
     }
 
-    visualize._bits.content = $content;
-    visualize._bits.box.css({"display": "block", "top": Math.floor(offset.top - pad), "left": Math.floor(offset.left - pad)})
+    bits.content = $content;
+    bits.box.css({"display": "block", "top": Math.floor(offset.top - pad), "left": Math.floor(offset.left - pad)})
         .find(".suspicion__results__outer-wrap").html($content);
+  },
+
+  results: function(finds, postId) {
+    //build display text from findings
+    var display = { primary: [], secondary: [], raw: [], highest: -1 };
+
+    for(var category in Found) {
+      if (Found.hasOwnProperty(category) && finds[postId].hasOwnProperty(Found[category]._name)) {
+        var findCat = Found[category];
+
+        for(var type in findCat) {
+          if (type === "_name") { continue; }
+
+          if (findCat.hasOwnProperty(type) && finds[postId][findCat._name].hasOwnProperty(findCat[type]._name)) {
+            var findType = findCat[type],
+                format = findType.format || "$1<hr/>",
+                content = "";
+
+            if (display.highest < findType.weight) {
+              display.highest = findType.weight;
+            }
+
+            for(var i=0; i<finds[postId][findCat._name][findType._name].length; i++) {
+              content += format.replace(/\$1/g, finds[postId][findCat._name][findType._name][i]);
+            }
+
+            display.raw.push({
+                title: findType.detail,
+                content: content,
+                weighs: findType.weight
+            });
+          }
+        }
+      }
+    }
+
+    for(var i=0; i<display.raw.length; i++) {
+      if (display.raw[i].weighs == display.highest) {
+        display.primary.push(display.raw[i]);
+      } else {
+        display.secondary.push(display.raw[i]);
+      }
+    }
+
+    return display;
+  },
+
+  section: function(data) {
+    return "<div class='suspicion__section'><strong>"+ data.title +"</strong><br/>"+ data.content +"</div>";
   },
 
   icon: function($doc) {
@@ -738,56 +726,16 @@ var visualize = {
 
       if (findings.hasOwnProperty(postId)) {
         (function(_postId) {
-          //build display text from findings
-          var highest = -1,
-              display = { primary: [], secondary: [], raw: [] };
+          var display = visualize.results(findings, _postId),
+              byWeight = function(a, b) { return b.weighs - a.weighs; };
 
-          for(var category in Found) {
-            if (Found.hasOwnProperty(category) && findings[_postId].hasOwnProperty(Found[category]._name)) {
-              var findCat = Found[category];
-
-              for(var type in findCat) {
-                if (type === "_name") { continue; }
-
-                if (findCat.hasOwnProperty(type) && findings[_postId][findCat._name].hasOwnProperty(findCat[type]._name)) {
-                  var findType = findCat[type],
-                      format = findType.format || "$1<hr/>",
-                      content = "";
-
-                  if (highest < findType.weight) {
-                    highest = findType.weight;
-                  }
-
-                  for(var i=0; i<findings[_postId][findCat._name][findType._name].length; i++) {
-                    content += format.replace(/\$1/g, findings[_postId][findCat._name][findType._name][i]);
-                  }
-
-                  display.raw.push({
-                      title: findType.detail,
-                      content: content,
-                      weighs: findType.weight
-                  });
-                }
-              }
-            }
-          }
-
-          for(var i=0; i<display.raw.length; i++) {
-            if (display.raw[i].weighs == highest) {
-              display.primary.push(display.raw[i]);
-            } else {
-              display.secondary.push(display.raw[i]);
-            }
-          }
-
-          var byWeight = function(a, b) { return b.weighs - a.weighs; };
           display.primary.sort(byWeight);
           display.secondary.sort(byWeight);
 
           //make icon and append to post
-          if (highest < 0) { highest = 0; }
-          var $secret = $("<div/>").addClass("comment__secrets").addClass(BELIEFS[highest].style)
-                                   .html("<em class='fa fa-user-secret' title='"+ BELIEFS[highest].wording +"'></em>")
+          if (display.highest < 0) { display.highest = 0; }
+          var $secret = $("<div/>").addClass("comment__secrets").addClass(BELIEFS[display.highest].style)
+                                   .html("<em class='fa fa-user-secret' title='"+ BELIEFS[display.highest].wording +"'></em>")
                                    .on('click', function() { visualize.reveal(this, display); return false; });
 
           if (_postId === "undefined") {
@@ -811,11 +759,132 @@ var visualize = {
   }
 };
 
+/* Kick off sniffing */
+var init = {
+  form: function() {
+    var $box = bits.box,
+        $wrap = $box.find(".suspicion__results__outer-wrap");
+
+    $box.find("#suspect-main").on("click", function() {
+      var $this = $(this);
+      if (!$this.hasClass("is-selected")) {
+        bits.focusOn($this);
+
+        $wrap.html(bits.content);
+
+        //always all
+        if (OPTIONS.alwaysAll.value) { $(".local").click(); }
+      }
+    });
+
+    //going from this scren to main kills the "show all button"
+    $box.find("#suspect-input").on("click", function() {
+      var $this = $(this);
+      if (!$this.hasClass("is-selected")) {
+        bits.focusOn($this);
+
+        bits.content.detach();
+        $wrap.html(bits.input);
+
+        var customFinds = {},
+            $results = $wrap.find(".suspicion__section");
+
+        $wrap.find(".form__input").on("input", function() {
+          //reset on every new input
+          customFinds = {};
+          $results.html("");
+
+          var $content = $("<div/>").html($(this).val()),
+              customId = "0";
+
+          //find from new input
+          lookFor.anything(customFinds, customId, $content);
+          lookFor.lengthMod(customFinds, customId, $content.text());
+
+          if (customFinds[customId]) {
+            var customDisplay = visualize.results(customFinds, customId);
+
+            for(var i=0; i<customDisplay.primary.length; i++) {
+              $results.append(visualize.section(customDisplay.primary[i]));
+            }
+
+            if (customDisplay.secondary.length) {
+              for(var i=0; i<customDisplay.secondary.length; i++) {
+                $results.append(visualize.section(customDisplay.secondary[i]));
+              }
+            }
+          }
+        });
+      }
+    });
+
+    $box.find("#suspect-setting").on("click", function() {
+      var $this = $(this);
+      if (!$this.hasClass("is-selected")) {
+        bits.focusOn($this);
+
+        var wide = $wrap.find(".suspicion__results__inner-wrap").width();
+
+        bits.content.detach();
+        $wrap.html(bits.opts.css("width", wide));
+
+        bits.opts.html("<strong>Options</strong>");
+        $.each(OPTIONS, function(i, opt) {
+          var $content = init.settingBlock(opt);
+          bits.opts.append($content).append("<hr/>");
+        });
+      }
+    });
+
+    $("body").append($box);
+
+    visualize.style();
+    init.options();
+  },
+
+  settingBlock: function(setting) {
+    var $content = $("<div/>").addClass("form__checkbox").append(setting.text)
+                    .append("<i class='form__checkbox__default fa fa-square-o'></i>")
+                    .append("<i class='form__checkbox__hover fa fa-square'></i>")
+                    .append("<i class='form__checkbox__selected fa fa-check-square'></i>");
+
+    if (setting.value) { $content.addClass("is-selected"); }
+
+    $content.on("click", function() {
+      $content.toggleClass("is-selected");
+
+      setting.value = !setting.value;
+      GM_setValue(setting.key, setting.value);
+      init.options();
+    });
+
+    return $content;
+  },
+
+  options: function() {
+    var $box = bits.box;
+
+    //pinned
+    var turnOff = function() {
+      $box.css({"display": "none"}).find(".suspicion__results__outer-wrap").html("");
+      bits.focusOn($box.find("#suspect-main"));
+    };
+
+    if (OPTIONS.pinned.value) {
+      $box.off("mouseleave click").on("click", function(evt) { evt.stopPropagation(); });
+      $("body").off("click").on("click", turnOff);
+    } else {
+      $box.off("mouseleave click").on('mouseleave', turnOff);
+      $("body").off("click");
+    }
+  }
+};
+
 // // // // //
 
 //one-time calls
-visualize.init.form();
-lookFor.topic();
+init.form();
+lookFor.topic(findings);
 
 //sniffer calls
 var $document = $(document),
