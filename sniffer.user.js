@@ -5,7 +5,7 @@
 // @description  Sniff out hidden content on steamgifts.com posts
 // @icon         https://raw.githubusercontent.com/bberenz/sniffer/master/secret-agent.png
 // @include      *://*.steamgifts.com/*
-// @version      1.1.3
+// @version      1.1.4
 // @downloadURL  https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.user.js
 // @updateURL    https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.meta.js
 // @require      https://code.jquery.com/jquery-1.12.3.min.js
@@ -41,7 +41,8 @@ var Found = {
   HIDDEN: {
     _name: "hidden",
     HOVER: { _name: "hover", weight: 0, category: "HIDDEN", detail: "Shown on image hover:" },
-    NULL_ELM: { _name: "nullElm", weight: 1, category: "HIDDEN", detail: "Declared on hidden elements:" }
+    NULL_ELM: { _name: "nullElm", weight: 1, category: "HIDDEN", detail: "Declared on hidden elements:" },
+    YOUTUBE: { _name: "youtubeParam", weight: 1, category: "HIDDEN", detail: "Hidden in a youtube link:" },
   },
   SUSPICIOUS: {
     _name: "suspicious",
@@ -219,6 +220,21 @@ var lookFor = {
 
       if (!$elm.html() || checkIf.small($elm.text())) {
         if (href) { addFinding(finds, postId, Found.HIDDEN.NULL_ELM, href); }
+      } else if (href.search(/youtube\.com/) > -1 || href.search(/youtu\.be/) > -1) {
+        var expected = ["v", "t", "list"], //valid YT params
+            query = href.substring(href.indexOf("?")).split(/[?&]/);
+
+        for(var i=0; i<query.length; i++) {
+          var bits = query[i].split(/=/);
+
+          if (bits.length == 2) {
+            if (expected.indexOf(bits[0]) == -1) {
+              addFinding(finds, postId, Found.HIDDEN.YOUTUBE, bits[1]);
+            }
+          } else if (bits.length > 2) {
+            addFinding(finds, postId, Found.HIDDEN.YOUTUBE, bits[2]);
+          }
+        }
       } else {
         //not a hidden link, but check if it's location is useful
         lookFor.length(finds, postId, href);
