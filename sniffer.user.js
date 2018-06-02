@@ -36,6 +36,16 @@ var MORSE_MAP = {
   "-·--·":"(","-·--·-":")","··--·-":"_","---·":"!","-·-·--":"!",".-.-..":"\n","/":" "
 };
 
+var GENETIC_MAP = {
+  "GGG":"G","GGA":"G","GGC":"G","GGU":"G","GAG":"E","GAA":"E","GAC":"D","GAU":"D",
+  "GCG":"A","GCA":"A","GCC":"A","GCU":"A","GUG":"V","GUA":"V","GUC":"V","GUU":"V",
+  "AGG":"R","AGA":"R","AGC":"S","AGU":"S","AAG":"K","AAA":"K","AAC":"N","AAU":"N",
+  "ACG":"T","ACA":"T","ACC":"T","ACU":"T","AUG":"M","AUA":"I","AUC":"I","AUU":"I",
+  "CGG":"R","CGA":"R","CGC":"R","CGU":"R","CAG":"Q","CAA":"Q","CAC":"H","CAU":"H",
+  "CCG":"P","CCA":"P","CCC":"P","CCU":"P","CUG":"L","CUA":"L","CUC":"L","CUU":"L",
+  "UGG":"W","UGA":"*","UGC":"C","UGU":"C","UAG":"*","UAA":"*","UAC":"Y","UAU":"Y",
+  "UCG":"S","UCA":"S","UCC":"S","UCU":"S","UUG":"L","UUA":"L","UUC":"F","UUU":"F"
+}
 
 var Found = {
   HIDDEN: {
@@ -361,8 +371,27 @@ var lookFor = {
   genetic: function(finds, postId, string) {
     if (!string) { return; }
 
-    var seq = string.match(/(\b[GUAC]{3}(?:\s+|$))+/g);
-    if (seq && seq[0].trim() !== "AAA") { addFinding(finds, postId, Found.SEQUENCE.GENETIC, seq); }
+    var seq = string.match(/(\b[guacGUAC]{3}(?:\s+|$))+/g);
+    if (seq) {
+      for(var i=0; i<seq.length; i++) {
+        var at = seq[i].trim().toUpperCase();
+        if (at !== "AAA" && at !== "GAA") {
+          addFinding(finds, postId, Found.SEQUENCE.GENETIC, seq);
+          
+          //try to decode
+          var letters = at.split(/\s+/g),
+              decode = "";
+          
+          for(var l=0; l<letters.length; l++) {
+            if(GENETIC_MAP[letters[l]]) { decode += GENETIC_MAP[letters[l]]; }
+          }
+          
+          if (decode && decode.length > 3) {
+            addFinding(finds, postId, Found.DECODED.GENETIC, decode);
+          }
+        }
+      }
+    }
   },
 
   binary: function(finds, postId, string) {
