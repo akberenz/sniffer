@@ -5,7 +5,7 @@
 // @description  Sniff out hidden content on steamgifts.com posts
 // @icon         https://raw.githubusercontent.com/bberenz/sniffer/master/secret-agent.png
 // @include      *://*.steamgifts.com/*
-// @version      1.1.4
+// @version      1.1.5
 // @downloadURL  https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.user.js
 // @updateURL    https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.meta.js
 // @require      https://code.jquery.com/jquery-1.12.3.min.js
@@ -45,7 +45,7 @@ var GENETIC_MAP = {
   "CCG":"P","CCA":"P","CCC":"P","CCU":"P","CUG":"L","CUA":"L","CUC":"L","CUU":"L",
   "UGG":"W","UGA":"*","UGC":"C","UGU":"C","UAG":"*","UAA":"*","UAC":"Y","UAU":"Y",
   "UCG":"S","UCA":"S","UCC":"S","UCU":"S","UUG":"L","UUA":"L","UUC":"F","UUU":"F"
-}
+};
 
 var Found = {
   HIDDEN: {
@@ -76,7 +76,7 @@ var Found = {
     BASE64: { _name: "base64", weight: 0, category: "SEQUENCE", detail: "Looks base64 encoded:" },
     BINARY: { _name: "binary", weight: 0, category: "SEQUENCE", detail: "Looks like binary code:" },
     DECIMAL: { _name: "decimal", weight: 0, category: "SEQUENCE", detail: "Looks like a decimal sequence:" },
-    GENETIC: { _name: "genetic", weight: 0, category: "SEQUENCE", detail: "Looks like DNA code:" },
+    GENETIC: { _name: "genetic", weight: 0, category: "SEQUENCE", detail: "Looks like a genetic sequence:" },
     GIFT: { _name: "gift", weight: 3, category: "SEQUENCE", detail: "Looks like a giveaway code:", format: "<a href='/giveaway/$1/' target='_blank'>$1</a><hr/>" },
     GIFT_LINK: { _name: "giftLink", weight: 3, category: "SEQUENCE", detail: "Giveaway links:", format: "<a href='$1' target='_blank'>$1</a><hr/>" },
     GIFT_PART: { _name: "giftPart", weight: 2, category: "SEQUENCE", detail: "Looks like a partial giveaway code:" },
@@ -383,7 +383,7 @@ var lookFor = {
               decode = "";
           
           for(var l=0; l<letters.length; l++) {
-            if(GENETIC_MAP[letters[l]]) { decode += GENETIC_MAP[letters[l]]; }
+            if (GENETIC_MAP[letters[l]]) { decode += GENETIC_MAP[letters[l]]; }
           }
           
           if (decode && decode.length > 3) {
