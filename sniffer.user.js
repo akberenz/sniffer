@@ -377,15 +377,15 @@ var lookFor = {
         var at = seq[i].trim().toUpperCase();
         if (at !== "AAA" && at !== "GAA") {
           addFinding(finds, postId, Found.SEQUENCE.GENETIC, seq);
-          
+
           //try to decode
           var letters = at.split(/\s+/g),
               decode = "";
-          
+
           for(var l=0; l<letters.length; l++) {
             if (GENETIC_MAP[letters[l]]) { decode += GENETIC_MAP[letters[l]]; }
           }
-          
+
           if (decode && decode.length > 3) {
             addFinding(finds, postId, Found.DECODED.GENETIC, decode);
           }
@@ -400,7 +400,7 @@ var lookFor = {
     var seq = string.match(/([01\s]{8,})+/g);
     if (seq) {
       var split = seq.join("").replace(/\s+/g, "").match(/([01]{8})/g),
-          complete = ""
+          complete = "",
           decoded = "";
 
       if (!split) { return; }
@@ -488,7 +488,7 @@ var lookFor = {
   link: function(finds, postId, string) {
     if (!string) { return; }
 
-    testString = string.toLowerCase();
+    var testString = string.toLowerCase();
     if (testString.search(/giveaway\/\w{5}\//) > -1 || testString.search(/giveaways\/\w{8}-/) > -1) {
       addFinding(finds, postId, Found.SEQUENCE.GIFT_LINK, string);
     } else if (testString.indexOf("http") === 0 && testString.length > 8) {
