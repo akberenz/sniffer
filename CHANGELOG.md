@@ -1,6 +1,6 @@
 ### Recent Updates
 
-**1.1.5** - Genetic decoding
+**1.1.5.1** - Genetic decoding + some code cleanup
 **1.1.4** - Look for extraneous parameters in youtube links
 **1.1.3** - Clear custom input when hidden
 **1.1.2** - Better inclusions on certain findings
