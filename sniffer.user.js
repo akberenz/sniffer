@@ -5,7 +5,7 @@
 // @description  Sniff out hidden content on steamgifts.com posts
 // @icon         https://raw.githubusercontent.com/bberenz/sniffer/master/secret-agent.png
 // @include      *://*.steamgifts.com/*
-// @version      1.1.5.1
+// @version      1.1.5.2
 // @downloadURL  https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.user.js
 // @updateURL    https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.meta.js
 // @require      https://code.jquery.com/jquery-1.12.3.min.js
@@ -371,19 +371,32 @@ var lookFor = {
   genetic: function(finds, postId, string) {
     if (!string) { return; }
 
-    var seq = string.match(/(\b[guacGUAC]{3}(?:\s+|$))+/g);
+    var seq = string.match(/\b((?:[acguACGU]{3}|\d+)(?:\s+|\b|$)){3,}/g);
     if (seq) {
       for(var i=0; i<seq.length; i++) {
-        var at = seq[i].trim().toUpperCase();
-        if (at !== "AAA" && at !== "GAA") {
-          addFinding(finds, postId, Found.SEQUENCE.GENETIC, seq);
+        var at = seq[i].trim();
+        if (at.toUpperCase() !== "AAA") {
+          addFinding(finds, postId, Found.SEQUENCE.GENETIC, seq[i]);
 
           //try to decode
           var letters = at.split(/\s+/g),
               decode = "";
 
           for(var l=0; l<letters.length; l++) {
-            if (GENETIC_MAP[letters[l]]) { decode += GENETIC_MAP[letters[l]]; }
+            var mapped = GENETIC_MAP[letters[l].toUpperCase()];
+
+            if (mapped) {
+              // first letter in each trio decides case
+              var first = letters[l][0];
+
+              if (first.toUpperCase() === first) {
+                decode += mapped;
+              } else {
+                decode += mapped.toLowerCase();
+              }
+            } else if (parseInt(letters[l])) {
+              decode += letters[l];
+            }
           }
 
           if (decode && decode.length > 3) {
