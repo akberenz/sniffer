@@ -5,20 +5,23 @@
 // @description  Sniff out hidden content on steamgifts.com posts
 // @icon         https://raw.githubusercontent.com/bberenz/sniffer/master/secret-agent.png
 // @include      *://*.steamgifts.com/*
-// @version      1.1.5.3
+// @version      1.1.6
 // @downloadURL  https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.user.js
 // @updateURL    https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.meta.js
 // @require      https://code.jquery.com/jquery-1.12.3.min.js
+// @require      https://greasemonkey.github.io/gm4-polyfill/gm4-polyfill.js
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        GM.getValue
+// @grant        GM.setValue
 // ==/UserScript==
 */
 
 //  SETUP  //
 var OPTIONS = {
-  pinned: { key: "pinned", value: GM_getValue("pinned", false), text: "Keep Pinned" },
-  alwaysAll: { key: "alwaysAll", value: GM_getValue("alwaysAll", false), text: "Always Show All" }
+  pinned: { key: "pinned", value: false, text: "Keep Pinned" },
+  alwaysAll: { key: "alwaysAll", value: false, text: "Always Show All" }
 };
 
 var BELIEFS = [
@@ -918,8 +921,7 @@ var init = {
       $content.toggleClass("is-selected");
 
       setting.value = !setting.value;
-      GM_setValue(setting.key, setting.value);
-      init.options();
+      GM.setValue(setting.key, setting.value).then(init.options);
     });
 
     return $content;
@@ -958,20 +960,28 @@ var init = {
 
 // // // // //
 
-//one-time calls
-init.form();
-lookFor.topic(findings);
+Promise.all([
+  GM.getValue("pinned", false),
+  GM.getValue("alwaysAll", false),
+]).then(function(states) {
+  OPTIONS.pinned.value = states[0];
+  OPTIONS.alwaysAll.value = states[1];
 
-//sniffer calls
-var $document = $(document),
-    originalContent = $(".comment");
+  //one-time calls
+  init.form();
+  lookFor.topic(findings);
 
-$document.on('scroll', function() {
-  var currentContent = $(".comment");
-  if (currentContent.length > originalContent.length) {
-    actOn.content($(currentContent).not(originalContent));
-    originalContent = currentContent;
-  }
+  //sniffer calls
+  var $document = $(document),
+      originalContent = $(".comment");
+
+  $document.on('scroll', function() {
+    var currentContent = $(".comment");
+    if (currentContent.length > originalContent.length) {
+      actOn.content($(currentContent).not(originalContent));
+      originalContent = currentContent;
+    }
+  });
+
+  actOn.content($document); //inital page load
 });
-
-actOn.content($document); //inital page load
