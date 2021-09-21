@@ -5,7 +5,7 @@
 // @description  Sniff out hidden content on steamgifts.com posts
 // @icon         https://raw.githubusercontent.com/bberenz/sniffer/master/secret-agent.png
 // @include      *://*.steamgifts.com/*
-// @version      1.1.7.2
+// @version      1.1.8
 // @downloadURL  https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.user.js
 // @updateURL    https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.meta.js
 // @require      https://code.jquery.com/jquery-1.12.3.min.js
@@ -90,7 +90,8 @@ var Found = {
                 format: "<div>$1 <span style='float:right;'>" +
                         "<a class='fa fa-question-circle-o' title='ItsTooHard' href='http://itstoohard.com/puzzle/$1' target='_blank'></a> / " +
                         "<a class='fa fa-puzzle-piece' title='Jigidi' href='https://www.jigidi.com/jigsaw-puzzle/$1' target='_blank'></a>" +
-                        "</span></div> <div style='clear:both;'></div>" }
+                        "</span></div> <div style='clear:both;'></div>" },
+    UUID: { _name: "uuid", weight: 0, category: "SEQUENCE", detail: "Looks like SGTools code:", format: "<a href='https://www.sgtools.info/giveaways/$1' target='_blank'>$1</a><hr/>" }
   }
 };
 
@@ -220,6 +221,7 @@ var lookFor = {
     lookFor.binary(findings, postId, $elm.text());
     lookFor.decimal(findings, postId, $elm.text());
     lookFor.base64(findings, postId, $elm.text());
+    lookFor.uuid(findings, postId, $elm.text());
   },
 
   topic: function(finds) {
@@ -501,6 +503,17 @@ var lookFor = {
     }
   },
 
+  uuid: function(finds, postId, string) {
+    if (!string) { return; }
+
+    var seq = string.match(/\b[0-9a-f]{8}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{12}/gi);
+    if (seq) {
+      for(var i=0; i<seq.length; i++) {
+        addFinding(finds, postId, Found.SEQUENCE.UUID, seq);
+      }
+    }
+  },
+
   link: function(finds, postId, string) {
     if (!string) { return; }
 
@@ -515,15 +528,17 @@ var lookFor = {
   length: function(finds, postId, string) {
     if (!string || string.length < 5 || !string.match(/^[\w+?-]+$/)) { return; }
 
+    var partial = string.match(/[_-]/g);
+
     if (string.length == 5) {
-      if (string.match(/^[A-Za-z0-9]+$/g)) {
+      if (!partial) {
         addFinding(finds, postId, Found.SEQUENCE.GIFT, string);
       } else {
         addFinding(finds, postId, Found.SEQUENCE.GIFT_PART, string);
       }
-    } else if (string.length == 7) {
+    } else if (string.length == 7 && !partial) {
       addFinding(finds, postId, Found.SEQUENCE.IMGUR, string);
-    } else if (string.length == 8) {
+    } else if (string.length == 8 && !partial) {
       addFinding(finds, postId, Found.SEQUENCE.EXTERNAL, string);
     }
 

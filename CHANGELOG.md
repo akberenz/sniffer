@@ -1,4 +1,5 @@
 ### Recent Updates
+**1.1.8** - Add SGTool sniffing
 **1.1.7** - Update for new discussion categories
 **1.1.6** - Greasemonkey 4 compatibility
 **1.1.5** - Advanced genetic decoding + some code cleanup
