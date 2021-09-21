@@ -5,7 +5,7 @@
 // @description  Sniff out hidden content on steamgifts.com posts
 // @icon         https://raw.githubusercontent.com/bberenz/sniffer/master/secret-agent.png
 // @include      *://*.steamgifts.com/*
-// @version      1.1.8
+// @version      1.1.8.1
 // @downloadURL  https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.user.js
 // @updateURL    https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.meta.js
 // @require      https://code.jquery.com/jquery-1.12.3.min.js
@@ -82,7 +82,6 @@ var Found = {
     GENETIC: { _name: "genetic", weight: 0, category: "SEQUENCE", detail: "Looks like a genetic sequence:" },
     GIFT: { _name: "gift", weight: 3, category: "SEQUENCE", detail: "Looks like a giveaway code:", format: "<a href='/giveaway/$1/' target='_blank'>$1</a><hr/>" },
     GIFT_LINK: { _name: "giftLink", weight: 3, category: "SEQUENCE", detail: "Giveaway links:", format: "<a href='$1' target='_blank'>$1</a><hr/>" },
-    GIFT_PART: { _name: "giftPart", weight: 2, category: "SEQUENCE", detail: "Looks like a partial giveaway code:" },
     IMGUR: { _name: "imgur", weight: 1, category: "SEQUENCE", detail: "Looks like an Imgur image code:", format: "<a href='http://imgur.com/$1' target='_blank'>$1</a><hr/>" },
     LINK: { _name: "link", weight: 2, category: "SEQUENCE", detail: "Secret links:", format: "<a href='$1' target='_blank'>$1</a><hr/>" },
     MORSE: { _name: "morse", weight: 0, category: "SEQUENCE", detail: "Looks like morse code:" },
@@ -92,6 +91,12 @@ var Found = {
                         "<a class='fa fa-puzzle-piece' title='Jigidi' href='https://www.jigidi.com/jigsaw-puzzle/$1' target='_blank'></a>" +
                         "</span></div> <div style='clear:both;'></div>" },
     UUID: { _name: "uuid", weight: 0, category: "SEQUENCE", detail: "Looks like SGTools code:", format: "<a href='https://www.sgtools.info/giveaways/$1' target='_blank'>$1</a><hr/>" }
+  },
+  PARTIAL: {
+    _name: "partial",
+    GIFT: { _name: "giftPart", weight: 2, category: "PARTIAL", detail: "Looks like a partial giveaway code:" },
+    IMGUR: { _name: "imgurPart", weight: 1, category: "PARTIAL", detail: "Looks like a partial Imgur image code:" },
+    EXTERNAL: { _name: "externalPart", weight: 2, category: "PARTIAL", detail: "Looks like a partial puzzle code (ITH/Jig):" },
   }
 };
 
@@ -205,6 +210,10 @@ var checkIf = {
   newSet: function($doc, postId) {
     return !((postId !== "undefined" && !$doc.find("[id='"+ postId +"']").length)
               || (postId === "undefined" && !$doc.find("header").length)); //special case for root post
+  },
+
+  partial: function(string) {
+    return !!string.match(/[^0-9a-z]/gi);
   }
 };
 
@@ -295,8 +304,14 @@ var lookFor = {
           }
         }
 
+        var seq = firsts.join("");
+
+        if (checkIf.partial(seq)) {
+          reasonable = false;
+        }
+
         if (reasonable) {
-          addFinding(finds, postId, Found.SUSPICIOUS.GROUPED, firsts.join(""));
+          addFinding(finds, postId, Found.SUSPICIOUS.GROUPED, seq);
         }
       }
     }
@@ -528,18 +543,17 @@ var lookFor = {
   length: function(finds, postId, string) {
     if (!string || string.length < 5 || !string.match(/^[\w+?-]+$/)) { return; }
 
-    var partial = string.match(/[_-]/g);
+    var category = "SEQUENCE";
+    if (checkIf.partial(string)) {
+      category = "PARTIAL";
+    }
 
     if (string.length == 5) {
-      if (!partial) {
-        addFinding(finds, postId, Found.SEQUENCE.GIFT, string);
-      } else {
-        addFinding(finds, postId, Found.SEQUENCE.GIFT_PART, string);
-      }
-    } else if (string.length == 7 && !partial) {
-      addFinding(finds, postId, Found.SEQUENCE.IMGUR, string);
-    } else if (string.length == 8 && !partial) {
-      addFinding(finds, postId, Found.SEQUENCE.EXTERNAL, string);
+      addFinding(finds, postId, Found[category].GIFT, string);
+    } else if (string.length == 7) {
+      addFinding(finds, postId, Found[category].IMGUR, string);
+    } else if (string.length == 8) {
+      addFinding(finds, postId, Found[category].EXTERNAL, string);
     }
 
     if (string.indexOf("ESGST") == 0) {
