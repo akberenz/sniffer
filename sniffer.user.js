@@ -5,7 +5,7 @@
 // @description  Sniff out hidden content on steamgifts.com posts
 // @icon         https://raw.githubusercontent.com/bberenz/sniffer/master/secret-agent.png
 // @include      *://*.steamgifts.com/*
-// @version      1.1.8.1
+// @version      1.1.8.2
 // @downloadURL  https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.user.js
 // @updateURL    https://raw.githubusercontent.com/bberenz/sniffer/master/sniffer.meta.js
 // @require      https://code.jquery.com/jquery-1.12.3.min.js
@@ -245,7 +245,7 @@ var lookFor = {
       if (!$elm.html() || checkIf.small($elm.text())) {
         if (href) { addFinding(finds, postId, Found.HIDDEN.NULL_ELM, href); }
       } else if (href.search(/youtube\.com/) > -1 || href.search(/youtu\.be/) > -1) {
-        var expected = ["v", "t", "list"], //valid YT params
+        var expected = ["v", "t", "list", "feature", "index"], //valid YT params
             query = href.substring(href.indexOf("?")).split(/[?&]/);
 
         for(var i=0; i<query.length; i++) {
